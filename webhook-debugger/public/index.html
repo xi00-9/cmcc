@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webhook 调试工具</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d2991d;
+    --purple: #a371f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .status .dot.error { background: var(--red); }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .setup-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .setup-card h2 { font-size: 16px; margin-bottom: 12px; }
+  .url-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 14px;
+    word-break: break-all;
+  }
+  .url-box code { flex: 1; color: var(--accent); }
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn.danger { background: var(--red); }
+  .curl-hint {
+    margin-top: 12px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--green);
+    overflow-x: auto;
+  }
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card .num { font-size: 32px; font-weight: 700; color: var(--accent); }
+  .stat-card .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .filters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filters select, .filters input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .request-list { display: flex; flex-direction: column; gap: 12px; }
+  .request-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .request-card:hover { border-color: var(--accent); }
+  .request-card.new { animation: flash 0.6s ease-out; border-color: var(--green); }
+  @keyframes flash { from { background: #1a3a2a; } to { background: var(--card); } }
+  .req-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .req-header:hover { background: rgba(255,255,255,0.02); }
+  .method-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: monospace;
+    min-width: 48px;
+    text-align: center;
+  }
+  .method-badge.GET { background: #1a3a2a; color: var(--green); }
+  .method-badge.POST { background: #1a2a3a; color: var(--accent); }
+  .method-badge.PUT { background: #3a2a1a; color: var(--orange); }
+  .method-badge.DELETE { background: #3a1a1a; color: var(--red); }
+  .method-badge.PATCH { background: #2a1a3a; color: var(--purple); }
+  .req-meta { font-size: 13px; color: var(--muted); display: flex; gap: 16px; align-items: center; }
+  .req-body { padding: 0 16px 16px; display: none; }
+  .req-body.open { display: block; }
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 12px 0 4px;
+    letter-spacing: 0.5px;
+  }
+  .section-label:first-child { margin-top: 0; }
+  pre {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #000;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    z-index: 100;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔗 <span>Webhook</span> 调试工具</h1>
+  <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">连接中...</span></div>
+</header>
+
+<main>
+  <div class="setup-card">
+    <h2>📡 你的 Webhook 地址</h2>
+    <div class="url-box">
+      <code id="webhookUrl">加载中...</code>
+      <button class="btn" onclick="copyUrl()">复制</button>
+      <button class="btn ghost" onclick="newEndpoint()">换一个</button>
+    </div>
+    <div class="curl-hint" id="curlHint"></div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="num" id="totalCount">0</div><div class="label">收到请求</div></div>
+    <div class="stat-card"><div class="num" id="todayCount">0</div><div class="label">今日请求</div></div>
+    <div class="stat-card"><div class="num" id="uniqueMethods">0</div><div class="label">请求方法</div></div>
+    <div class="stat-card"><div class="num" id="uptimeStr">0s</div><div class="label">运行时间</div></div>
+  </div>
+
+  <div class="filters">
+    <select id="methodFilter" onchange="renderList()">
+      <option value="">全部方法</option>
+      <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option>
+    </select>
+    <input type="text" id="searchFilter" placeholder="搜索 body/headers..." oninput="renderList()">
+    <button class="btn ghost" onclick="clearAll()">清空全部</button>
+    <span style="font-size:12px;color:var(--muted)" id="filteredCount"></span>
+  </div>
+
+  <div class="request-list" id="requestList">
+    <div class="empty"><div class="icon">📭</div><div>等待请求...</div><div style="font-size:13px;margin-top:8px">用上面的 curl 命令发一个试试</div></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let endpointId = null;
+let allWebhooks = [];
+let eventSource = null;
+
+async function init() {
+  // Get or create endpoint
+  let saved = localStorage.getItem('webhookEndpointId');
+  if (saved) {
+    endpointId = saved;
+  } else {
+    const res = await fetch('/api/endpoints', { method: 'POST' });
+    const data = await res.json();
+    endpointId = data.id;
+    localStorage.setItem('webhookEndpointId', endpointId);
+  }
+  updateUrl();
+  loadHistory();
+  connectSSE();
+  updateStats();
+  setInterval(updateStats, 10000);
+}
+
+function updateUrl() {
+  const url = `${location.origin}/hook/${endpointId}`;
+  document.getElementById('webhookUrl').textContent = url;
+  document.getElementById('curlHint').textContent =
+    `curl -X POST ${url} \\\n  -H "Content-Type: application/json" \\\n  -d '{"event":"test","data":"hello webhook"}'`;
+}
+
+async function newEndpoint() {
+  const res = await fetch('/api/endpoints', { method: 'POST' });
+  const data = await res.json();
+  endpointId = data.id;
+  localStorage.setItem('webhookEndpointId', endpointId);
+  updateUrl();
+}
+
+function copyUrl() {
+  const url = document.getElementById('webhookUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => toast('已复制!'));
+}
+
+function connectSSE() {
+  eventSource = new EventSource('/api/stream');
+  eventSource.addEventListener('new', (e) => {
+    const wh = JSON.parse(e.data);
+    allWebhooks.unshift(wh);
+    renderList();
+    updateStats();
+  });
+  eventSource.addEventListener('clear', () => {
+    allWebhooks = [];
+    renderList();
+    updateStats();
+  });
+  eventSource.onopen = () => {
+    document.getElementById('statusDot').classList.remove('error');
+    document.getElementById('statusText').textContent = '已连接';
+  };
+  eventSource.onerror = () => {
+    document.getElementById('statusDot').classList.add('error');
+    document.getElementById('statusText').textContent = '断开 — 重连中...';
+  };
+}
+
+async function loadHistory() {
+  const res = await fetch(`/api/webhooks?endpoint=${endpointId}&limit=100`);
+  allWebhooks = await res.json();
+  renderList();
+}
+
+async function updateStats() {
+  const res = await fetch('/api/stats');
+  const stats = await res.json();
+  document.getElementById('totalCount').textContent = stats.totalWebhooks;
+  document.getElementById('uptimeStr').textContent = formatUptime(stats.uptime);
+
+  // Today count
+  const today = new Date().toISOString().substring(0, 10);
+  const todayReqs = allWebhooks.filter(w => w.timestamp.startsWith(today));
+  document.getElementById('todayCount').textContent = todayReqs.length;
+
+  const methods = new Set(allWebhooks.map(w => w.method));
+  document.getElementById('uniqueMethods').textContent = methods.size;
+}
+
+function formatUptime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function renderList() {
+  const methodFilter = document.getElementById('methodFilter').value;
+  const search = document.getElementById('searchFilter').value.toLowerCase();
+  let filtered = allWebhooks;
+  if (methodFilter) filtered = filtered.filter(w => w.method === methodFilter);
+  if (search) {
+    filtered = filtered.filter(w =>
+      JSON.stringify(w.body).toLowerCase().includes(search) ||
+      JSON.stringify(w.headers).toLowerCase().includes(search)
+    );
+  }
+  document.getElementById('filteredCount').textContent = `显示 ${filtered.length} / ${allWebhooks.length}`;
+
+  const container = document.getElementById('requestList');
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty"><div class="icon">📭</div><div>${allWebhooks.length === 0 ? '等待请求...' : '没有匹配的请求'}</div></div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map((wh, i) => {
+    const time = new Date(wh.timestamp).toLocaleString('zh-CN');
+    const bodyPreview = wh.body ? (typeof wh.body === 'string' ? wh.body : JSON.stringify(wh.body)).substring(0, 100) : '(空)';
+    const isNew = i === 0 && (Date.now() - new Date(wh.timestamp).getTime() < 2000);
+    return `
+    <div class="request-card ${isNew ? 'new' : ''}">
+      <div class="req-header" onclick="toggleBody(this)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="method-badge ${wh.method}">${wh.method}</span>
+          <span style="font-size:14px">${time}</span>
+          <span style="font-size:13px;color:var(--muted)">${wh.contentType}</span>
+          <span style="font-size:13px;color:var(--accent);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(bodyPreview)}</span>
+        </div>
+        <div class="req-meta">
+          <span>${wh.responseTime || 0}ms</span>
+          <span style="font-size:18px">▾</span>
+        </div>
+      </div>
+      <div class="req-body">
+        <div class="section-label">📋 Headers</div>
+        <pre>${JSON.stringify(wh.headers, null, 2)}</pre>
+        <div class="section-label">📦 Body (${wh.contentType})</div>
+        <pre>${typeof wh.body === 'string' ? escapeHtml(wh.body) : JSON.stringify(wh.body, null, 2)}</pre>
+        ${wh.query && Object.keys(wh.query).length > 0 ? `<div class="section-label">🔍 Query Params</div><pre>${JSON.stringify(wh.query, null, 2)}</pre>` : ''}
+        <div class="section-label">📐 请求信息</div>
+        <pre>路径: ${wh.path}
+时间: ${wh.timestamp}
+IP: ${wh.ip}
+耗时: ${wh.responseTime || '?'}ms
+${wh.replayedFrom ? `回放自: ${wh.replayedFrom}` : ''}</pre>
+        <button class="btn ghost" onclick="event.stopPropagation();replayWebhook('${wh.id}')">🔄 回放此请求</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleBody(el) {
+  const body = el.nextElementSibling;
+  body.classList.toggle('open');
+  const arrow = el.querySelector('.req-meta span:last-child');
+  if (arrow) arrow.textContent = body.classList.contains('open') ? '▴' : '▾';
+}
+
+async function replayWebhook(id) {
+  await fetch(`/api/webhooks/${id}/replay`, { method: 'POST' });
+  toast('已回放');
+}
+
+async function clearAll() {
+  if (!confirm('确定清空所有请求记录？')) return;
+  await fetch(`/api/webhooks?endpoint=${endpointId}`, { method: 'DELETE' });
+  allWebhooks = [];
+  renderList();
+  updateStats();
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+init();
+</script>
+</body>
+</html>

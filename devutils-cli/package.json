@@ -1,0 +1,21 @@
+{
+  "name": "devutils-cli",
+  "version": "1.0.0",
+  "description": "Command-line dev utilities: JSON formatter, timestamp converter, base64 en/decoder, UUID generator, port checker, JWT decoder",
+  "main": "devutils.js",
+  "bin": {
+    "devutils": "./devutils.js"
+  },
+  "scripts": {
+    "start": "node devutils.js"
+  },
+  "keywords": [
+    "cli",
+    "devtools",
+    "json",
+    "jwt",
+    "base64",
+    "timestamp"
+  ],
+  "license": "MIT"
+}

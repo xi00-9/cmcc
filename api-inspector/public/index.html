@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Request Inspector</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d2991d;--purple:#a371f7;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--card);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+h1{font-size:20px}h1 span{color:var(--accent)}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.dot.err{background:var(--red)}
+main{max-width:1300px;margin:0 auto;padding:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:24px}
+.card h2{font-size:16px;margin-bottom:12px}
+.url-row{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:monospace;font-size:14px}
+.url-row code{flex:1;color:var(--accent);word-break:break-all}
+.btn{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{opacity:.85}.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn.danger{background:var(--red)}.btn.sm{padding:4px 10px;font-size:12px}
+.hint{margin-top:12px;background:#1a1a2e;border-radius:6px;padding:12px 14px;font-family:monospace;font-size:13px;color:var(--green);overflow-x:auto;white-space:pre-wrap}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
+.stat .n{font-size:28px;font-weight:700;color:var(--accent)}
+.stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+.filters{display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+.filters select,.filters input{background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px}
+.req{background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;transition:border-color .2s}
+.req:hover{border-color:var(--accent)}
+.req.new{animation:flash .6s ease-out;border-color:var(--green)}
+@keyframes flash{from{background:#1a3a2a}to{background:var(--card)}}
+.req-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;user-select:none}
+.req-head:hover{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;min-width:50px;text-align:center}
+.badge.GET{background:#1a3a2a;color:var(--green)}
+.badge.POST{background:#1a2a3a;color:var(--accent)}
+.badge.PUT{background:#3a2a1a;color:var(--orange)}
+.badge.DELETE{background:#3a1a1a;color:var(--red)}
+.badge.PATCH{background:#2a1a3a;color:var(--purple)}
+.req-info{font-size:13px;color:var(--muted);display:flex;gap:16px;align-items:center}
+.req-body{padding:0 16px 16px;display:none}
+.req-body.open{display:block}
+.sec{font-size:11px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px;letter-spacing:.5px}
+.sec:first-child{margin-top:0}
+pre{background:var(--bg);border-radius:6px;padding:12px;font-family:monospace;font-size:12px;line-height:1.5;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all}
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty .icon{font-size:48px;margin-bottom:12px}
+.actions{display:flex;gap:6px;margin-top:12px}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:#000;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;z-index:100;opacity:0;transform:translateY(10px);transition:all .3s}
+.toast.show{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<header><h1>API <span>Inspector</span></h1><div class="status"><span class="dot" id="sd"></span><span id="st">connecting...</span></div></header>
+<main>
+<div class="card">
+<h2>Your Catch Endpoint</h2>
+<div class="url-row"><code id="catchUrl">loading...</code><button class="btn" onclick="copyUrl()">Copy</button><button class="btn ghost" onclick="newEp()">New</button></div>
+<div class="hint" id="curlEx"></div>
+</div>
+<div class="stats"><div class="stat"><div class="n" id="tc">0</div><div class="l">Total</div></div><div class="stat"><div class="n" id="td">0</div><div class="l">Today</div></div><div class="stat"><div class="n" id="um">0</div><div class="l">Methods</div></div><div class="stat"><div class="n" id="up">0s</div><div class="l">Uptime</div></div></div>
+<div class="filters"><select id="mf" onchange="render()"><option value="">All Methods</option><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option></select><input id="sf" placeholder="Search body/headers..." oninput="render()"><button class="btn ghost" onclick="clearAll()">Clear</button><span style="font-size:12px;color:var(--muted)" id="fc"></span></div>
+<div id="list"><div class="empty"><div class="icon">waiting</div><div>Waiting for first request...</div></div></div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+let ep=null,all=[];
+async function init(){
+let s=localStorage.getItem('apiInspectorId');
+if(s){ep=s}else{const r=await fetch('/api/endpoints',{method:'POST'});const d=await r.json();ep=d.id;localStorage.setItem('apiInspectorId',ep)}
+updateUrl();loadHistory();connectSSE();updateStats();setInterval(updateStats,15000)
+}
+function updateUrl(){const u=location.origin+'/catch/'+ep;document.getElementById('catchUrl').textContent=u;document.getElementById('curlEx').textContent='curl -X POST '+u+' -H "Content-Type: application/json" -d \'{"event":"test"}\'\n\ncurl "'+u+'?_status=201&_delay=1000"'}
+async function newEp(){const r=await fetch('/api/endpoints',{method:'POST'});const d=await r.json();ep=d.id;localStorage.setItem('apiInspectorId',ep);updateUrl()}
+function copyUrl(){navigator.clipboard.writeText(document.getElementById('catchUrl').textContent);toast('Copied!')}
+function connectSSE(){const es=new EventSource('/api/stream');es.addEventListener('new',e=>{all.unshift(JSON.parse(e.data));render();updateStats()});es.addEventListener('clear',()=>{all=[];render();updateStats()});es.onopen=()=>{document.getElementById('sd').classList.remove('err');document.getElementById('st').textContent='Connected'};es.onerror=()=>{document.getElementById('sd').classList.add('err');document.getElementById('st').textContent='Reconnecting...'}}
+async function loadHistory(){const r=await fetch('/api/requests?endpoint='+ep+'&limit=200');all=await r.json();render()}
+async function updateStats(){const r=await fetch('/api/stats');const s=await r.json();document.getElementById('tc').textContent=s.total;document.getElementById('up').textContent=fmtUp(s.uptime);const td=new Date().toISOString().substring(0,10);const tt=all.filter(function(w){return w.timestamp.startsWith(td)});document.getElementById('td').textContent=tt.length;document.getElementById('um').textContent=new Set(all.map(function(w){return w.method})).size}
+function fmtUp(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+m+'m':m>0?m+'m':Math.floor(s)+'s'}
+function render(){var mf=document.getElementById('mf').value,sf=document.getElementById('sf').value.toLowerCase();var f=all;if(mf)f=f.filter(function(w){return w.method===mf});if(sf)f=f.filter(function(w){return JSON.stringify(w.body).toLowerCase().indexOf(sf)>=0||JSON.stringify(w.headers).toLowerCase().indexOf(sf)>=0});document.getElementById('fc').textContent=f.length+' / '+all.length;var c=document.getElementById('list');if(!f.length){c.innerHTML='<div class="empty"><div class="icon">empty</div><div>No matching requests</div></div>';return}
+c.innerHTML=f.map(function(w,i){var t=new Date(w.timestamp).toLocaleString('en-US');var bp=w.body?(typeof w.body==='string'?w.body:JSON.stringify(w.body)).substring(0,100):'(empty)';var n=i===0&&(Date.now()-new Date(w.timestamp).getTime()<2000);return'<div class="req'+(n?' new':'')+'"><div class="req-head" onclick="this.nextElementSibling.classList.toggle(\'open\')"><div style="display:flex;align-items:center;gap:12px"><span class="badge '+w.method+'">'+w.method+'</span><span style="font-size:13px">'+t+'</span><span style="font-size:13px;color:var(--muted)">'+(w.contentType||'')+'</span><span style="font-size:13px;color:var(--accent);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+hp(bp)+'</span></div><div class="req-info"><span>'+(w.responseTime||0)+'ms</span><span style="font-size:18px">more</span></div></div><div class="req-body"><div class="sec">Headers</div><pre>'+JSON.stringify(w.headers,null,2)+'</pre><div class="sec">Body</div><pre>'+(typeof w.body==='string'?hp(w.body):JSON.stringify(w.body,null,2))+'</pre>'+(w.query&&Object.keys(w.query).length?'<div class="sec">Query</div><pre>'+JSON.stringify(w.query,null,2)+'</pre>':'')+'<div class="sec">Details</div><pre>Path: '+w.path+'\nTime: '+w.timestamp+'\nIP: '+w.ip+'\nLatency: '+(w.responseTime||'?')+'ms'+(w.replayedFrom?'\nReplayed from: '+w.replayedFrom:'')+'</pre><div class="actions"><button class="btn sm ghost" onclick="event.stopPropagation();replay(\''+w.id+'\')">Replay</button></div></div></div>';}).join('')}
+async function replay(id){await fetch('/api/requests/'+id+'/replay',{method:'POST'});toast('Replayed')}
+async function clearAll(){if(!confirm('Clear all?'))return;await fetch('/api/requests?endpoint='+ep,{method:'DELETE'});all=[];render();updateStats()}
+function hp(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2000)}
+init();
+</script>
+</body>
+</html>
